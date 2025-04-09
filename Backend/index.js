@@ -1,13 +1,17 @@
 const express =require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const path = require('path');
 const HttpError =require('./Utils/HttpError');
 require('dotenv').config();
 
 const app = express();
 app.use(bodyParser.json());
 
-mongoose.connect('mongodb://127.0.0.1:27017/cseproject7')
+// Serve static files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+mongoose.connect('mongodb://127.0.0.1:27017/cseproject')
 .then(()=> console.log('connected to database'))   
 .catch((error)=> console.log(error));
 
