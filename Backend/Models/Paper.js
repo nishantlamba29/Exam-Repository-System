@@ -14,7 +14,6 @@ const QuestionSubSchema = new mongoose.Schema({
     },
     embedding: {
         type: [Number], // Array of numbers as the vector
-        required: false,
     },
 });
 
@@ -28,6 +27,10 @@ const PaperSchema = new mongoose.Schema({
         required: true,
     },
     questions: [QuestionSubSchema],
+    course: {
+        type: String,
+        required: true,
+    },
     createdAt: {
         type: Date,
         default: Date.now,

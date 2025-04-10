@@ -32,6 +32,23 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
       },
+      paperId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Paper",
+      },
+    },
+  ],
+  enrolledCourses: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      required: true,
+    },
+  ],
+  browsedCourses: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
     },
   ],
 });

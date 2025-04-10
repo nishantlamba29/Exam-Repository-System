@@ -16,6 +16,23 @@ const QuestionList = () => {
 
   const handlePaperClick = (paper) => {
     setSelectedPaper(paper);
+
+    // Update browsed courses for the user by calling the update endpoint
+    fetch("http://localhost:8000/updateBrowsedCourse", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + auth.token,
+      },
+      body: JSON.stringify({ course: paper.course }),
+    })
+      .then((res) => res.json())
+      .then((data) =>
+        console.log("User browsed courses updated:", data)
+      )
+      .catch((error) =>
+        console.error("Error updating browsed courses:", error)
+      );
   };
 
   const handleClose = () => {

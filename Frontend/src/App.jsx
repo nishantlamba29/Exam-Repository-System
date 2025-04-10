@@ -12,6 +12,7 @@ import Upload  from "./Components/Upload/Upload";
 import Subscription from "./Components/Subscription/Subscription";
 import Question from "./Components/Question/Question";
 import Spinnerr from "./Components/Spinner/Spinner";
+import Dashboard from "./Components/Dashboard/Dashboard";
 
 function App() {
   const { token, login, logout, userId, credit, updateCredit } = useAuth();
@@ -42,12 +43,13 @@ function App() {
               </>
             ) : (
               <>
-                <Route path="/" element={<Hero />} />
+                <Route path="/" element={<Dashboard />} />
                 <Route path="/upload" element={<Upload />} />
                 <Route path="/subscription" element={<Subscription />} />
                 <Route path="/papers" element={<Question />} />
                 <Route path="/spinner" element={<Spinnerr />} />
-                <Route path="/*" element={<Hero />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/*" element={<Dashboard />} />
               </>
             )}
           </Routes>
