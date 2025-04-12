@@ -6,7 +6,8 @@ export default function Subscription() {
   const amount = 499 * 100;
   const currency = "INR";
   const receiptId = "qwsaq1";
-
+  const apiUrl = import.meta.env.VITE_RAZORPAY_TEST;
+  console.log(apiUrl);
   const paymentHandler = async (e) => {
     e.preventDefault();
 
@@ -36,9 +37,8 @@ export default function Subscription() {
   };
 
   const initializeRazorpay = (order) => {
-    // console.log( process.env.REACT_APP_RAZORPAY_TEST);
     const options = {
-      key: "rzp_test_pBjWhXmDvQr9bP"  ,
+      key: apiUrl,
       amount,
       currency,
       name: "Exammer",
@@ -57,7 +57,11 @@ export default function Subscription() {
             "http://localhost:8000/validatePayment",
             {
               method: "POST",
-              body: JSON.stringify({ ...response, amount , "credit":auth.credit }),
+              body: JSON.stringify({
+                ...response,
+                amount,
+                credit: auth.credit,
+              }),
               headers: {
                 "Content-Type": "application/json",
                 Authorization: "Bearer " + auth.token,
@@ -91,18 +95,22 @@ export default function Subscription() {
               Unlock Knowledge with Credits
             </h2>
             <p className="mb-5 font-light text-gray-500 sm:text-xl dark:text-gray-400">
-              Get access to expert-verified answers by using credits. Purchase credits and explore a world of valuable knowledge.
+              Get access to expert-verified answers by using credits. Purchase
+              credits and explore a world of valuable knowledge.
             </p>
           </div>
           <div className="space-y-8 sm:gap-6 xl:gap-10 lg:space-y-0">
             <div className="flex flex-col p-6 mx-auto max-w-lg text-center text-gray-900 bg-white rounded-lg border border-gray-100 shadow dark:border-gray-600 xl:p-8 dark:bg-gray-800 dark:text-white">
               <h3 className="mb-4 text-2xl font-semibold">Credit Plan</h3>
               <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400">
-                Purchase credits to unlock answers and enhance your learning experience.
+                Purchase credits to unlock answers and enhance your learning
+                experience.
               </p>
               <div className="flex justify-center items-baseline my-8">
                 <span className="mr-2 text-5xl font-extrabold">₹500</span>
-                <span className="text-gray-500 dark:text-gray-400">for 10,000 Credits</span>
+                <span className="text-gray-500 dark:text-gray-400">
+                  for 10,000 Credits
+                </span>
               </div>
               <ul role="list" className="mb-8 space-y-4 text-left">
                 <li className="flex items-center space-x-3">
@@ -118,7 +126,8 @@ export default function Subscription() {
                 </li>
                 <li className="flex items-center space-x-3">
                   <span>
-                    Premium support: <span className="font-semibold">24/7 Assistance</span>
+                    Premium support:{" "}
+                    <span className="font-semibold">24/7 Assistance</span>
                   </span>
                 </li>
               </ul>
