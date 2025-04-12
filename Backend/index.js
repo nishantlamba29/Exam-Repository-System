@@ -55,7 +55,6 @@ app.use(QuestionRoutes);
 app.use(PaymentRoutes);
 app.use(CourseRoutes);
 
-
 app.use((req, res, next) => next (new HttpError('Could not find this route.', 404)));
 
 app.use((error, req, res, next) => {

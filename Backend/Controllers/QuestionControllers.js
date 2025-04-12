@@ -8,7 +8,8 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const coursesData = require("../Data/courses.json");
 const Course = require("../Models/Course");
 
-const genAI = new GoogleGenerativeAI("AIzaSyAFI6MEaFZ39EAoV99iFmQVJU3CCZlDku8");
+const GEMINI_KEY = process.env.GEMINI_KEY
+const genAI = new GoogleGenerativeAI({GEMINI_KEY});
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 async function getVectorEmbedding(text) {
