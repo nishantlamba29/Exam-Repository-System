@@ -30,20 +30,30 @@ const Dashboard = () => {
           <p>No new recommendations.</p>
         ) : (
           <div className="max-h-80 overflow-y-auto hide-scrollbar">
-            <ul className="space-y-4">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {recommendations.map((paper) => (
                 <li
                   key={paper._id}
-                  className="p-4 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700"
+                  className="p-4 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700 transition-colors"
                   onClick={() => navigate(`/paper/${paper._id}`)}
                 >
                   <div className="flex justify-between items-center">
-                    <span className="font-bold">
-                      New paper {paper.title} uploaded for course [{paper.course || "N/A"}]
-                    </span>
-                    <span className="text-sm text-gray-400">
-                      {new Date(paper.createdAt).toLocaleDateString()}
-                    </span>
+                    <div className="space-y-1">
+                      <span className="font-bold text-lg">
+                        [{paper.course ? `${paper.course.code}] ${paper.course.name}` : "N/A"}
+                      </span>
+                      <span className="ml-2 text-lg">
+                        ({paper.examType})
+                      </span>
+                      <div className="flex items-center w-full">
+                        <span className="text-sm text-gray-400">
+                          Session: {paper.session} {paper.sessionYear}
+                        </span>
+                        <span className="ml-105 text-sm text-gray-400">
+                          {new Date(paper.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </li>
               ))}

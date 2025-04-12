@@ -39,8 +39,12 @@ const UploadPaper = async (req, res, next) => {
       {
         text:
           "Extract details from the exam paper exactly as it appears. " +
-          "Return a JSON output that contains two keys: 'course' and 'questions'. " +
-          "The 'course' key should be a string with the course code (e.g., 'CSC306') associated with the entire exam paper. " +
+          "Return a JSON output that contains the following keys: " +
+          "'course', 'session', 'sessionYear', 'examType', and 'questions'. " +
+          "The 'course' key should be an object with two keys: 'code' (e.g., 'CSC306') and 'name' (e.g., 'Computer Networks'). " +
+          "The 'session' key must be one of 'Winter', 'Summer', or 'Monsoon'. " +
+          "The 'sessionYear' key should be a string representing the academic session (e.g., '2022-23', '2023-24'). " +
+          "The 'examType' key must be one of 'Midsem', 'Endsem', 'Quiz', or 'Assignment'. " +
           "The 'questions' key should be an array where each object contains a 'question', a brief 'answer_outline', and a relevant 'tag'. " +
           "If the paper is unreadable or invalid, return a plain string indicating so. " +
           "Output only a JSON object in a markdown code block.",
@@ -55,15 +59,24 @@ const UploadPaper = async (req, res, next) => {
 
     const result = await model.generateContent({ contents: [{ parts }] });
     const textResponse = result.response.text();
-    const parsed = JSON.parse(textResponse.match(/```json\n([\s\S]*?)\n```/)[1]);
+    console.log("Gemini raw response:", textResponse);
+
+    const match = textResponse.match(/```json\n([\s\S]*?)\n```/);
+    if (!match) {
+      console.error("Failed to parse Gemini response.");
+      return res.status(400).json({ message: "Invalid Gemini response format" });
+    }
+    const parsed = JSON.parse(match[1]);
+    console.log("Parsed Gemini output:", parsed);
 
     if (!parsed.course) {
+      console.error("Parsed output missing course information.");
       return res
         .status(400)
         .json({ message: "Course code could not be extracted from the paper" });
     }
 
-    // Compute vector embeddings for each QA pair from the 'questions' array
+    // Compute vector embeddings for each Q&A pair from the 'questions' array
     const questionsWithEmbeddings = await Promise.all(
       parsed.questions.map(async (item) => {
         const vector = await getVectorEmbedding(
@@ -78,15 +91,38 @@ const UploadPaper = async (req, res, next) => {
       })
     );
 
-    // Create the Paper using the extracted course code
+    // First, try to look up the course in the database using the extracted course code
+    let courseObj = await Course.findOne({ code: parsed.course.code });
+    console.log("Lookup by course code:", parsed.course.code, "=>", courseObj);
+
+    // Fallback: if no course was found by code, search by the course name using a regex match
+    if (!courseObj) {
+      // Construct a case-insensitive regex that matches the start of the course name
+      const nameRegex = new RegExp("^" + parsed.course.name, "i");
+      courseObj = await Course.findOne({ name: { $regex: nameRegex } });
+      console.log("Fallback lookup by course name regex:", parsed.course.name, "=>", courseObj);
+      if (!courseObj) {
+        console.error("No course found with the provided code or name.");
+        return res.status(400).json({
+          message: "No course found with the provided course code or course name",
+        });
+      }
+    }
+
+    // Create the Paper using the new model with added fields
     const paper = new Paper({
       title: req.body.title || req.file.originalname,
       filePath: `/uploads/${req.file.originalname}`,
-      course: parsed.course,
+      course: courseObj._id,
+      session: parsed.session,
+      sessionYear: parsed.sessionYear,
+      examType: parsed.examType,
       questions: questionsWithEmbeddings,
     });
+    console.log("Paper to be saved:", paper);
 
     await paper.save();
+    console.log("Paper saved successfully.");
     res.status(201).json({ message: "Paper uploaded successfully", paper });
   } catch (error) {
     console.error("Error generating content:", error);
@@ -107,11 +143,15 @@ const GetQuestion = async (req, res, next) => {
 
 const GetPapers = async (req, res, next) => {
   try {
-    const papers = await Paper.find();
+    // Populate the course reference to retrieve course code and name
+    const papers = await Paper.find().populate("course");
     const formattedPapers = papers.map((paper) => ({
       _id: paper._id,
       title: paper.title,
-      course: paper.course,
+      course: paper.course, // populated course details
+      session: paper.session,
+      sessionYear: paper.sessionYear,
+      examType: paper.examType,
       createdAt: paper.createdAt,
       filePath: paper.filePath,
       questions: paper.questions,
@@ -133,14 +173,15 @@ const GetDashboard = async (req, res, next) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Extract enrolled course codes from populated enrolledCourses
-    const enrolled = user.enrolledCourses.map((course) => course.code);
+    // Extract enrolled course ObjectIds from populated enrolledCourses
+    const enrolled = user.enrolledCourses.map((course) => course._id.toString());
     console.log("User enrolled courses:", enrolled);
 
     // Compute frequency from browsedCourses and pick top 3.
     const freq = {};
     user.browsedCourses.forEach((course) => {
-      freq[course] = (freq[course] || 0) + 1;
+      const id = course._id ? course._id.toString() : course.toString();
+      freq[id] = (freq[id] || 0) + 1;
     });
     const topBrowsed = Object.entries(freq)
       .sort((a, b) => b[1] - a[1])
@@ -154,9 +195,11 @@ const GetDashboard = async (req, res, next) => {
     let papers;
     if (relevantCourses.length === 0) {
       // Fallback: return some recent papers if no relevant course is set.
-      papers = await Paper.find().sort({ createdAt: -1 }).limit(10);
+      papers = await Paper.find().populate("course").sort({ createdAt: -1 }).limit(10);
     } else {
-      papers = await Paper.find({ course: { $in: relevantCourses } }).sort({ createdAt: -1 });
+      papers = await Paper.find({ course: { $in: relevantCourses } })
+        .populate("course")
+        .sort({ createdAt: -1 });
     }
     res.json(papers);
   } catch (error) {
