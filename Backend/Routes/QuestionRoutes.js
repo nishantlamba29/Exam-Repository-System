@@ -14,5 +14,6 @@ router.post("/uploadPaper", upload.single("file"), QuestionControllers.UploadPap
 // New routes for dashboard notifications and updating browsed courses
 router.get("/dashboard", IsAuthenticated, QuestionControllers.GetDashboard);
 router.post("/updateBrowsedCourse", IsAuthenticated, QuestionControllers.UpdateBrowsedCourse);
+router.post("/getPaperByID", QuestionControllers.getPaperByID);
 
 module.exports = router;

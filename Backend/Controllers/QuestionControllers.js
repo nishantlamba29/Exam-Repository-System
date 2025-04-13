@@ -237,6 +237,29 @@ const UpdateBrowsedCourse = async (req, res, next) => {
   }
 };
 
+exports.getPaperByID = async (req, res) => {
+  try {
+    console.log(req.body);
+    const { paperID } = req.body;
+    const paper = await Paper.findById(paperID).populate("course");
+    if (!paper) {
+      return res.status(403).json({
+        success: false,
+        message: "No paper found for the provided paper ID.",
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      message: "Paper retrieved successfully.",
+      paper,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: "An error occurred while retrieving the paper.",
+    });
+  }
+}
 exports.UploadPaper = UploadPaper;
 exports.GetQuestion = GetQuestion;
 exports.GetPapers = GetPapers;

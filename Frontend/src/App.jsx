@@ -13,6 +13,7 @@ import Subscription from "./Components/Subscription/Subscription";
 import Question from "./Components/Question/Question";
 import Spinnerr from "./Components/Spinner/Spinner";
 import Dashboard from "./Components/Dashboard/Dashboard";
+import PaperPage from "./Components/QuestionList/QuestionList";
 
 function App() {
   const { token, login, logout, userId, credit, updateCredit, refCode } = useAuth();
@@ -50,7 +51,8 @@ function App() {
                 <Route path="/subscription" element={<Subscription />} />
                 <Route path="/papers" element={<Question />} />
                 <Route path="/spinner" element={<Spinnerr />} />
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard />} />                
+                <Route path="/paper/:id" element={<PaperPage />} />
                 <Route path="/*" element={<Dashboard />} />
               </>
             )}
