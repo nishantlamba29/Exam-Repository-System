@@ -22,5 +22,9 @@ router.post(
   IsAuthenticated,
   QuestionControllers.UpdateBrowsedCourse
 );
+router.post(
+  "/getPaperByID",
+  QuestionControllers.getPaperByID
+);
 
 module.exports = router;

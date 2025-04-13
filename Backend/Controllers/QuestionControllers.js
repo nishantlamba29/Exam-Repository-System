@@ -9,7 +9,7 @@ const coursesData = require("../Data/courses.json");
 const Course = require("../Models/Course");
 
 const GEMINI_KEY = process.env.GEMINI_KEY
-const genAI = new GoogleGenerativeAI({GEMINI_KEY});
+const genAI = new GoogleGenerativeAI(GEMINI_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 async function getVectorEmbedding(text) {
@@ -237,6 +237,32 @@ const UpdateBrowsedCourse = async (req, res, next) => {
   }
 };
 
+exports.getPaperByID = async(req,res)=>{
+  try{
+    console.log(req.body);
+    const {paperID}=req.body;
+    console.log("printing for debigging",paperID);
+    const papers=await Paper.findById(paperID).populate("course");
+    if(!papers){
+      return res.status(403).json({
+        success:false,
+        message:"paper not found with given paper id",
+      })
+    }
+    return res.status(200).json({
+      sucess:true,
+      message:"paper fetched successfully",
+      papers,
+    })
+
+  }
+  catch(error){
+    return res.status(400).json({
+      success:false,
+      message:"something went wrong while fetching paper by paper id",
+    })
+  }
+}
 exports.UploadPaper = UploadPaper;
 exports.GetQuestion = GetQuestion;
 exports.GetPapers = GetPapers;

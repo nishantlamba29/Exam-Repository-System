@@ -253,6 +253,7 @@
     { "code": "MNE203", "name": "Introduction to Applied Artificial Intelligence" },
     { "code": "MNE204", "name": "Introduction to Mine Environment" },
     { "code": "MNO302", "name": "Seabed Mining and Asteroid Mining" },
+    { "code": "MNO303", "name": "Underground Construction Engineering" },
     { "code": "MNO304", "name": "Coal Mine Methane Recovery and Utilization" },
     { "code": "MNO401", "name": "Rock Engineering" },
     { "code": "MSC502", "name": "Research Methodology and Statistics" },

@@ -4,6 +4,9 @@ Frontend/node_modules/
 # Ignore backend dependencies
 Backend/node_modules/
 
+# uploads
+Backend/uploads/
+
 # Ignore build files
 Frontend/dist/
 Frontend/build/
