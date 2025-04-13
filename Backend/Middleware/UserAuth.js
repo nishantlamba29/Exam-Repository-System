@@ -11,7 +11,7 @@ module.exports = (req, res, next) => {
     if (!token) {
       throw new Error("Authentication  uu failed!");
     }
-    const decodedToken = jwt.verify(token, "siddharth");
+    const decodedToken = jwt.verify(token, "mayank");
     req.userData = { userId: decodedToken.userId };
     next();
   } catch (err) {

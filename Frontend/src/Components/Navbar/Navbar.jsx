@@ -1,6 +1,5 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import AuthContext from "../../Context/AuthContext";
-
 import { Link, useNavigate } from "react-router-dom";
 import { Wallet } from "lucide-react";
 import { Assets } from "../../Assets/Assets";
@@ -9,27 +8,54 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const auth = useContext(AuthContext);
   const navigate = useNavigate();
+
+  console.log("auth.refCode", auth.refCode);
+  console.log("auth.credit", auth.credit);
+  console.log(JSON.parse(localStorage.getItem("userData")));
+  useEffect(() => {
+    console.log("Updated refCode:", auth.refCode);
+  }, [auth.refCode]);
+
+  // Copy referral code handler
+  const handleCopy = () => {
+    if (auth.refCode) {
+      navigator.clipboard.writeText(auth.refCode);
+      alert("Referral code copied!");
+    }
+  };
+
   return (
     <nav className="bg-white dark:bg-gray-900 fixed w-full z-20 top-0 start-0 border-b border-gray-200 dark:border-gray-600">
       <div className="max-w-screen-xl flex flex-wrap items-center justify-between p-4 mx-auto">
-        <Link
-          to="/"
-        >
-          <img
-            src={Assets.logo}
-            className="h-8"
-            alt="Flowbite Logo"
-          />
+        <Link to="/">
+          <img src={Assets.logo} className="h-8" alt="Flowbite Logo" />
         </Link>
 
         <div className="flex md:order-2 space-x-3 md:space-x-0 rtl:space-x-reverse">
           {auth.token ? (
             <>
-              <div className="flex items-center space-x-2 bg-gray-800 text-white px-3 py-1  mr-2 rounded-lg">
+              <div className="flex items-center space-x-2 bg-gray-800 text-white px-3 py-1 mr-2 rounded-lg">
                 <Wallet size={18} className="text-blue-400" />
                 <span className="text-sm font-medium">
                   {auth.credit ? auth.credit : ""} Credits
                 </span>
+                {auth.refCode && (
+                  <div className="flex items-center space-x-1">
+                    <span className="text-[10px] text-gray-300">
+                      Ref Code:{" "}
+                      <span className="font-semibold text-white">
+                        {auth.refCode}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded focus:outline-none"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                )}
               </div>
               <button
                 type="button"
@@ -41,7 +67,6 @@ const Navbar = () => {
             </>
           ) : (
             <>
-              {" "}
               <Link to="/signup">
                 <button
                   type="button"
@@ -56,7 +81,7 @@ const Navbar = () => {
                   className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-4 py-2 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
                 >
                   Login
-                </button>{" "}
+                </button>
               </Link>
             </>
           )}

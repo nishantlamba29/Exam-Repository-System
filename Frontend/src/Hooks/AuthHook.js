@@ -7,16 +7,18 @@ const useAuth = () => {
   const [tokenExpirationDate, setTokenExpirationDate] = useState(null);
   const [userId, setUserId] = useState(null);
   const [credit, setCredit] = useState(null);
+  const [refCode, setRefCode] = useState(null);
 
-  const login = useCallback((uid, token, currentCredit, expirationDate) => {
+  const login = useCallback((uid, token, currentCredit, refCode, expirationDate) => {
     setToken(token);
     setUserId(uid);
     setCredit(currentCredit);
-
-    const tokenExpiry =
-      expirationDate || new Date(new Date().getTime() + 1000 * 60 * 60);
+    setRefCode(refCode);
+    // Set token expiration, defaulting to 1 hour if none is provided.
+    const tokenExpiry = expirationDate || new Date(new Date().getTime() + 1000 * 60 * 60);
     setTokenExpirationDate(tokenExpiry);
 
+    // Save all user data (including refCode) to localStorage.
     localStorage.setItem(
       "userData",
       JSON.stringify({
@@ -24,10 +26,11 @@ const useAuth = () => {
         token: token,
         expiration: tokenExpiry.toISOString(),
         credit: currentCredit,
+        refCode: refCode
       })
     );
 
-    console.log("User logged in:", { uid, token, currentCredit, tokenExpiry });
+    console.log("User logged in:", { uid, token, currentCredit, refCode ,tokenExpiry});
   }, []);
 
   const logout = useCallback(() => {
@@ -35,6 +38,7 @@ const useAuth = () => {
     setTokenExpirationDate(null);
     setUserId(null);
     setCredit(null);
+    setRefCode(null);
     localStorage.removeItem("userData");
 
     console.log("User logged out");
@@ -50,10 +54,10 @@ const useAuth = () => {
     }
   }, []);
 
+  // This effect takes care of setting up auto logout.
   useEffect(() => {
     if (token && tokenExpirationDate) {
-      const remainingTime =
-        tokenExpirationDate.getTime() - new Date().getTime();
+      const remainingTime = tokenExpirationDate.getTime() - new Date().getTime();
       logoutTimer = setTimeout(logout, remainingTime);
       console.log("Auto logout set for:", remainingTime / 1000, "seconds");
     } else {
@@ -61,6 +65,8 @@ const useAuth = () => {
     }
   }, [token, logout, tokenExpirationDate]);
 
+  
+  // This effect retrieves userData from localStorage and logs the user in if the token is still valid.
   useEffect(() => {
     const storedData = JSON.parse(localStorage.getItem("userData"));
     if (
@@ -72,12 +78,13 @@ const useAuth = () => {
         storedData.userId,
         storedData.token,
         storedData.credit,
+        storedData.refCode,
         new Date(storedData.expiration)
       );
     }
-  }, []);
+  }, [login]);
 
-  return { token, login, logout, userId, credit, updateCredit };
+  return { token, login, logout, userId, credit, updateCredit, refCode };
 };
 
 export default useAuth;

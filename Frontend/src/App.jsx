@@ -15,7 +15,7 @@ import Spinnerr from "./Components/Spinner/Spinner";
 import Dashboard from "./Components/Dashboard/Dashboard";
 
 function App() {
-  const { token, login, logout, userId, credit, updateCredit } = useAuth();
+  const { token, login, logout, userId, credit, updateCredit,refCode } = useAuth();
 
   return (
     <AuthContext.Provider
@@ -26,10 +26,12 @@ function App() {
         login: login,
         logout: logout,
         credit: credit,
+        refCode: refCode, 
         updateCredit: updateCredit,
       }}
     >
       <Router>
+      <div className="flex flex-col  min-h-screen  ">
         <Navbar />
         <main className="flex-grow">
           <Routes>
@@ -55,6 +57,7 @@ function App() {
           </Routes>
         </main>
         <Footer />
+        </div>
       </Router>
     </AuthContext.Provider>
   );

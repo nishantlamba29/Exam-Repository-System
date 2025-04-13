@@ -37,7 +37,7 @@ export default function Login() {
         throw new Error("Error occurred, please try again later");
       }
       const responseData = await response.json();
-      auth.login(responseData.userId, responseData.token, responseData.credit);
+      auth.login(responseData.userId, responseData.token, responseData.credit,responseData.refCode);
       console.log(responseData);
     } catch (error) {
       console.log(error);

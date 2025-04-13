@@ -40,7 +40,7 @@ const Dashboard = () => {
                   <div className="flex justify-between items-center">
                     <div className="space-y-1">
                       <span className="font-bold text-lg">
-                        [{paper.course ? `${paper.course.code}] ${paper.course.name}` : "N/A"}
+                        {paper.course ? `${paper.course.code}] ${paper.course.name}` : "N/A"}
                       </span>
                       <span className="ml-2 text-lg">
                         ({paper.examType})
