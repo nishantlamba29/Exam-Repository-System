@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useContext } from "react";
 import AuthContext from "../../Context/AuthContext";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import "./Question.css";
 
 const QuestionList = () => {
@@ -79,8 +84,50 @@ const QuestionList = () => {
                   className="p-4 bg-gray-700 border border-gray-600 rounded-lg shadow-md"
                 >
                   <h4 className="font-bold">Q{index + 1}: {qa.question}</h4>
-                  <p className="mt-2 text-gray-300">{qa.answer}</p>
-                  {qa.tag && <p className="mt-1 text-sm text-gray-400">Tag: {qa.tag}</p>}
+                  <hr className="mt-2 border-gray-600" />
+                  <div className="mt-2 text-gray-100">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={{
+                        // Override block math rendering: wrap in a full-width, centered div with vertical margins
+                        math: ({ node, ...props }) => (
+                          <div className="w-full my-4 flex justify-center">
+                            <span {...props} />
+                          </div>
+                        ),
+                        inlineMath: ({ node, ...props }) => <span {...props} />,
+                        h1: ({ node, ...props }) => (
+                          <h1 {...props} className="mt-2 mb-2 text-2xl font-bold" />
+                        ),
+                        h2: ({ node, ...props }) => (
+                          <h2 {...props} className="mt-2 mb-2 text-xl font-bold" />
+                        ),
+                        h3: ({ node, ...props }) => (
+                          <h3 {...props} className="mt-2 mb-2 text-lg font-bold" />
+                        ),
+                        p: ({ node, ...props }) => (
+                          <p {...props} className="text-gray-100" />
+                        ),
+                        ul: ({ node, ...props }) => (
+                          <ul {...props} className="list-disc ml-6 text-gray-100" />
+                        ),
+                        ol: ({ node, ...props }) => (
+                          <ol {...props} className="list-decimal ml-6 text-gray-100" />
+                        ),
+                        li: ({ node, ...props }) => (
+                          <li {...props} className="text-gray-100" />
+                        )
+                      }}
+                    >
+                      {qa.answer}
+                    </ReactMarkdown>
+                  </div>
+                  {qa.tag && (
+                    <p className="mt-1 text-sm text-gray-400">
+                      Tag: {qa.tag}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

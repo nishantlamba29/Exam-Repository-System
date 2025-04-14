@@ -7,10 +7,11 @@ const User = require("../Models/User");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const coursesData = require("../Data/courses.json");
 const Course = require("../Models/Course");
+const promptTemplate = require("../Data/prompt.json");
 
 const GEMINI_KEY = process.env.GEMINI_KEY
 const genAI = new GoogleGenerativeAI(GEMINI_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 async function getVectorEmbedding(text) {
     // Dummy implementation: return a fixed-length dummy vector
@@ -34,20 +35,10 @@ const UploadPaper = async (req, res, next) => {
     // Convert file buffer to base64 string
     const image = req.file.buffer.toString("base64");
 
-    // Updated Gemini prompt: extract exam paper details including a course code for the paper and questions array
+    // New Gemini prompt for question-answer extraction with detailed structure
     const parts = [
       {
-        text:
-          "Extract details from the exam paper exactly as it appears. " +
-          "Return a JSON output that contains the following keys: " +
-          "'course', 'session', 'sessionYear', 'examType', and 'questions'. " +
-          "The 'course' key should be an object with two keys: 'code' (e.g., 'CSC306') and 'name' (e.g., 'Computer Networks'). " +
-          "The 'session' key must be one of 'Winter', 'Summer', or 'Monsoon'. " +
-          "The 'sessionYear' key should be a string representing the academic session (e.g., '2022-23', '2023-24'). " +
-          "The 'examType' key must be one of 'Midsem', 'Endsem', 'Quiz', or 'Assignment'. " +
-          "The 'questions' key should be an array where each object contains a 'question', a brief 'answer_outline', and a relevant 'tag'. " +
-          "If the paper is unreadable or invalid, return a plain string indicating so. " +
-          "Output only a JSON object in a markdown code block.",
+        text: JSON.stringify(promptTemplate, null, 2)
       },
       {
         inlineData: {
@@ -79,12 +70,10 @@ const UploadPaper = async (req, res, next) => {
     // Compute vector embeddings for each Q&A pair from the 'questions' array
     const questionsWithEmbeddings = await Promise.all(
       parsed.questions.map(async (item) => {
-        const vector = await getVectorEmbedding(
-          `${item.question} ${item.answer_outline}`
-        );
+        const vector = await getVectorEmbedding(`${item.question} ${item.answer}`);
         return {
           question: item.question,
-          answer: item.answer_outline,
+          answer: item.answer,
           tag: item.tag,
           embedding: vector,
         };
