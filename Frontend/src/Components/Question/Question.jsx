@@ -136,7 +136,7 @@ const QuestionList = () => {
           </div>
 
           {/* Right Side: Questions and Answers */}
-          <div className="w-1/2 p-4 bg-gray-800">
+          <div className="w-1/2 p-4 bg-gray-800 overflow-y-auto h-[90vh]">
             <h3 className="text-lg font-bold mb-4">Questions and Answers</h3>
             <ul className="space-y-4">
               {selectedPaper.questions.map((qa, index) => (
