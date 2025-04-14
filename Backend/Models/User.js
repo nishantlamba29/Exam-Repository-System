@@ -55,6 +55,20 @@ const userSchema = new mongoose.Schema({
       ref: "Course",
     },
   ],
+  unlockedAnswers: [
+    {
+      paperId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Paper",
+        required: true,
+      },
+      questionIndexes: {
+        type: [Number],
+        required: true,
+        default: [],
+      },
+    },
+  ],
 });
 
 module.exports = mongoose.model("User", userSchema);

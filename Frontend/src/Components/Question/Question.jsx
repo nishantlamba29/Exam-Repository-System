@@ -11,6 +11,7 @@ const QuestionList = () => {
   const auth = useContext(AuthContext);
   const [papers, setPapers] = useState([]);
   const [selectedPaper, setSelectedPaper] = useState(null);
+  const [unlockedAnswers, setUnlockedAnswers] = useState({});
 
   useEffect(() => {
     fetch("http://localhost:8000/getPapers") // Update the endpoint to fetch papers
@@ -18,6 +19,33 @@ const QuestionList = () => {
       .then((data) => setPapers(data))
       .catch((error) => console.error("Error fetching papers:", error));
   }, []);
+
+  useEffect(() => {
+    if (selectedPaper) {
+      fetch("http://localhost:8000/getUnlockedAnswers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + auth.token,
+        },
+        body: JSON.stringify({ paperId: selectedPaper._id }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          const unlocked = {};
+          if (data.unlockedAnswers) {
+            data.unlockedAnswers.forEach((qIndex) => {
+              unlocked[qIndex] = true;
+            });
+          }
+          setUnlockedAnswers(unlocked);
+        })
+        .catch((error) => {
+          console.error("Error fetching unlocked answers:", error);
+          setUnlockedAnswers({});
+        });
+    }
+  }, [selectedPaper, auth.token]);
 
   const handlePaperClick = (paper) => {
     setSelectedPaper(paper);
@@ -29,7 +57,7 @@ const QuestionList = () => {
         "Content-Type": "application/json",
         Authorization: "Bearer " + auth.token,
       },
-      body: JSON.stringify({ course: paper.course }),
+      body: JSON.stringify({ course: paper.course.code }),
     })
       .then((res) => res.json())
       .then((data) =>
@@ -42,6 +70,39 @@ const QuestionList = () => {
 
   const handleClose = () => {
     setSelectedPaper(null);
+  };
+
+  const handleUnlock = async (index) => {
+    if (auth.credit < 5) {
+      alert("Not enough credits to unlock this answer.");
+      return;
+    }
+    const confirmed = window.confirm("Are you sure you want to unlock this answer for 5 credits?");
+    if (confirmed) {
+      try {
+        const response = await fetch("http://localhost:8000/unlockAnswer", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + auth.token,
+          },
+          body: JSON.stringify({
+            paperId: selectedPaper._id,
+            questionIndex: index,
+          }),
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Failed to unlock answer.");
+        }
+        // Deduct 5 credits in the Auth context
+        auth.updateCredit(auth.credit - 5);
+        // Mark this answer as unlocked in local state
+        setUnlockedAnswers((prev) => ({ ...prev, [index]: true }));
+      } catch (error) {
+        alert("Error unlocking answer: " + error.message);
+      }
+    }
   };
 
   return (
@@ -86,6 +147,7 @@ const QuestionList = () => {
                   <h4 className="font-bold">Q{index + 1}: {qa.question}</h4>
                   <hr className="mt-2 border-gray-600" />
                   <div className="mt-2 text-gray-100">
+                    {unlockedAnswers[index] ? (
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkMath]}
                       rehypePlugins={[rehypeKatex]}
@@ -122,6 +184,21 @@ const QuestionList = () => {
                     >
                       {qa.answer}
                     </ReactMarkdown>
+                    ) : (
+                      <button
+                        className="flex items-center mt-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                        onClick={() => handleUnlock(index)}
+                      >
+                        Unlock Answer&nbsp;
+                        <span className="flex items-center ml-2">
+                          5
+                          <img
+                            src="src/Assets/coin.svg"
+                            className="w-auto h-5 ml-1 inline-block text-white align-middle"
+                          />
+                        </span>
+                      </button>
+                    )}
                   </div>
                   {qa.tag && (
                     <p className="mt-1 text-sm text-gray-400">
