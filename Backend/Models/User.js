@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema({
     required: true,
     default: 100,
   },
+  RefCode:{
+    type: String,
+    required: true,
+  },
   Notification: [
     {
       Message: {
