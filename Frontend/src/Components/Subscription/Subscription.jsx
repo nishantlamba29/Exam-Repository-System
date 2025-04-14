@@ -7,6 +7,7 @@ export default function Subscription() {
   const currency = "INR";
   const receiptId = "qwsaq1";
 
+  const apiUrl = import.meta.env.VITE_RAZORPAY_TEST;
   const paymentHandler = async (e) => {
     e.preventDefault();
 
@@ -38,7 +39,7 @@ export default function Subscription() {
   const initializeRazorpay = (order) => {
     // console.log( process.env.REACT_APP_RAZORPAY_TEST);
     const options = {
-      key: "rzp_test_pBjWhXmDvQr9bP"  ,
+      key: apiUrl  ,
       amount,
       currency,
       name: "Exammer",
