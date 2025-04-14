@@ -98,6 +98,19 @@ const UploadPaper = async (req, res, next) => {
       }
     }
 
+    // Check if a paper with the same course, session, sessionYear, and examType already exists.
+    const existingPaper = await Paper.findOne({
+      course: courseObj._id,
+      session: parsed.session,
+      sessionYear: parsed.sessionYear,
+      examType: parsed.examType,
+    });
+    if (existingPaper) {
+      return res.status(400).json({
+        message: "A paper for the same course, session, and exam type already exists.",
+      });
+    }
+
     // Create the Paper using the new model with added fields
     const paper = new Paper({
       title: req.body.title || req.file.originalname,

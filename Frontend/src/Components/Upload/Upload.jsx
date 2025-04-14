@@ -31,16 +31,15 @@ function Upload() {
         body: formData,
       });
 
+      const responseData = await response.json();
       if (!response.ok) {
-        throw new Error("Error occurred, please try again later");
+        throw new Error(responseData.message || "Error occurred, please try again later");
       }
-
-      const responseData = await response.json()
       console.log(responseData);
-      setResult(responseData);
+      setResult(responseData.message);
     } catch (error) {
       console.error("Upload error:", error);
-      setResult("An error occurred. Please try again.");
+      setResult(error.message);
     }
   };
 
