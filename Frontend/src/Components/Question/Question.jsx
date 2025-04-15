@@ -8,6 +8,7 @@ import "katex/dist/katex.min.css";
 import "./Question.css";
 import { useParams } from "react-router-dom";
 import coinIcon from "../../Assets/coin.svg";
+import searchIcon from "../../Assets/search.svg";
 
 const QuestionList = () => {
   const auth = useContext(AuthContext);
@@ -15,6 +16,7 @@ const QuestionList = () => {
   const [papers, setPapers] = useState([]);
   const [selectedPaper, setSelectedPaper] = useState(null);
   const [unlockedAnswers, setUnlockedAnswers] = useState({});
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (id) {
@@ -128,20 +130,75 @@ const QuestionList = () => {
     }
   };
 
+  const filteredPapers = papers.filter((paper) => {
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
+    const courseCode = paper.course?.code?.toLowerCase() || "";
+    const courseName = paper.course?.name?.toLowerCase() || "";
+    const tags = (paper.questions || [])
+      .map((q) => q.tag?.toLowerCase() || "")
+      .join(" ");
+    return (
+      courseCode.includes(query) ||
+      courseName.includes(query) ||
+      tags.includes(query)
+    );
+  });
+
   return (
     <div className="w-full p-6 mx-auto mt-16 bg-gray-900 text-white shadow-2xl border border-gray-700">
       {!selectedPaper ? (
         <div>
           <h2 className="text-2xl font-bold mb-4">Uploaded Papers</h2>
+          <div className="relative mb-4">
+            <input
+              type="text"
+              placeholder="Search by course code, name, or tag..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-5 py-2 rounded-3xl bg-gray-800 border border-gray-600 text-white pl-12"
+            />
+            <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+              <img src={searchIcon} alt="search" className="w-5 h-5" />
+            </span>
+          </div>
           <ul className="space-y-4">
-            {papers.map((paper) => (
+            {filteredPapers.map((paper) => (
               <li
                 key={paper._id}
                 className="p-5 bg-gray-800 border border-gray-700 rounded-xl shadow-lg hover:shadow-xl transition duration-300 cursor-pointer"
                 onClick={() => handlePaperClick(paper)}
               >
-                <h3 className="text-lg font-bold">{paper.title}</h3>
-                <p className="text-sm text-gray-400">Uploaded on: {new Date(paper.createdAt).toLocaleDateString()}</p>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="font-bold text-lg">
+                      [{paper.course ? `${paper.course.code}] ${paper.course.name}` : "N/A"}
+                    </span>
+                    <span className="ml-2 text-lg">
+                      ({paper.examType})
+                    </span>
+                  </div>
+                  <span className="text-sm text-gray-400">
+                    {new Date(paper.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mt-1">
+                  <p className="text-sm text-gray-400">
+                    Session: {paper.session} {paper.sessionYear}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {(paper.questions || []).map((q, idx) =>
+                    q.tag ? (
+                      <span
+                        key={idx}
+                        className="bg-gray-700 text-xs px-2 py-1 rounded"
+                      >
+                        {q.tag}
+                      </span>
+                    ) : null
+                  )}
+                </div>
               </li>
             ))}
           </ul>

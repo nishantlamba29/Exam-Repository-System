@@ -37,22 +37,20 @@ const Dashboard = () => {
                   className="p-4 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700 transition-colors"
                   onClick={() => navigate(`/paper/${paper._id}`)}
                 >
-                  <div className="flex justify-between items-center">
-                    <div className="space-y-1">
-                      <span className="font-bold text-lg">
-                        [{paper.course ? `${paper.course.code}] ${paper.course.name}` : "N/A"}
+                  <div>
+                    <span className="font-bold text-lg">
+                      [{paper.course ? `${paper.course.code}] ${paper.course.name}` : "N/A"}
+                    </span>
+                    <span className="ml-2 text-lg">
+                      ({paper.examType})
+                    </span>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-sm text-gray-400">
+                        Session: {paper.session} {paper.sessionYear}
                       </span>
-                      <span className="ml-2 text-lg">
-                        ({paper.examType})
+                      <span className="text-sm text-gray-400">
+                        {new Date(paper.createdAt).toLocaleDateString()}
                       </span>
-                      <div className="flex items-center w-full">
-                        <span className="text-sm text-gray-400">
-                          Session: {paper.session} {paper.sessionYear}
-                        </span>
-                        <span className="ml-105 text-sm text-gray-400">
-                          {new Date(paper.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
                     </div>
                   </div>
                 </li>
