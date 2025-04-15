@@ -6,19 +6,42 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import "./Question.css";
+import { useParams } from "react-router-dom";
+import coinIcon from "../../Assets/coin.svg";
 
 const QuestionList = () => {
   const auth = useContext(AuthContext);
+  const { id } = useParams();
   const [papers, setPapers] = useState([]);
   const [selectedPaper, setSelectedPaper] = useState(null);
   const [unlockedAnswers, setUnlockedAnswers] = useState({});
 
   useEffect(() => {
-    fetch("http://localhost:8000/getPapers") // Update the endpoint to fetch papers
-      .then((res) => res.json())
-      .then((data) => setPapers(data))
-      .catch((error) => console.error("Error fetching papers:", error));
-  }, []);
+    if (id) {
+      // Fetch a single paper by ID
+      fetch("http://localhost:8000/getPaperByID", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + auth.token,
+        },
+        body: JSON.stringify({ paperID: id }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.paper) setSelectedPaper(data.paper);
+        })
+        .catch((error) => console.error("Error fetching paper:", error));
+    } else {
+      // Fetch all papers for the list view
+      fetch("http://localhost:8000/getPapers", {
+        headers: { Authorization: "Bearer " + auth.token },
+      })
+        .then((res) => res.json())
+        .then((data) => setPapers(data))
+        .catch((error) => console.error("Error fetching papers:", error));
+    }
+  }, [id, auth.token]);
 
   useEffect(() => {
     if (selectedPaper) {
@@ -148,42 +171,42 @@ const QuestionList = () => {
                   <hr className="mt-2 border-gray-600" />
                   <div className="mt-2 text-gray-100">
                     {unlockedAnswers[index] ? (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={{
                         // Override block math rendering: wrap in a full-width, centered div with vertical margins
-                        math: ({ node, ...props }) => (
-                          <div className="w-full my-4 flex justify-center">
-                            <span {...props} />
-                          </div>
-                        ),
-                        inlineMath: ({ node, ...props }) => <span {...props} />,
-                        h1: ({ node, ...props }) => (
-                          <h1 {...props} className="mt-2 mb-2 text-2xl font-bold" />
-                        ),
-                        h2: ({ node, ...props }) => (
-                          <h2 {...props} className="mt-2 mb-2 text-xl font-bold" />
-                        ),
-                        h3: ({ node, ...props }) => (
-                          <h3 {...props} className="mt-2 mb-2 text-lg font-bold" />
-                        ),
-                        p: ({ node, ...props }) => (
-                          <p {...props} className="text-gray-100" />
-                        ),
-                        ul: ({ node, ...props }) => (
-                          <ul {...props} className="list-disc ml-6 text-gray-100" />
-                        ),
-                        ol: ({ node, ...props }) => (
-                          <ol {...props} className="list-decimal ml-6 text-gray-100" />
-                        ),
-                        li: ({ node, ...props }) => (
-                          <li {...props} className="text-gray-100" />
-                        )
-                      }}
-                    >
-                      {qa.answer}
-                    </ReactMarkdown>
+                          math: ({ node, ...props }) => (
+                            <div className="w-full my-4 flex justify-center">
+                              <span {...props} />
+                            </div>
+                          ),
+                          inlineMath: ({ node, ...props }) => <span {...props} />,
+                          h1: ({ node, ...props }) => (
+                            <h1 {...props} className="mt-2 mb-2 text-2xl font-bold" />
+                          ),
+                          h2: ({ node, ...props }) => (
+                            <h2 {...props} className="mt-2 mb-2 text-xl font-bold" />
+                          ),
+                          h3: ({ node, ...props }) => (
+                            <h3 {...props} className="mt-2 mb-2 text-lg font-bold" />
+                          ),
+                          p: ({ node, ...props }) => (
+                            <p {...props} className="text-gray-100" />
+                          ),
+                          ul: ({ node, ...props }) => (
+                            <ul {...props} className="list-disc ml-6 text-gray-100" />
+                          ),
+                          ol: ({ node, ...props }) => (
+                            <ol {...props} className="list-decimal ml-6 text-gray-100" />
+                          ),
+                          li: ({ node, ...props }) => (
+                            <li {...props} className="text-gray-100" />
+                          )
+                        }}
+                      >
+                        {qa.answer}
+                      </ReactMarkdown>
                     ) : (
                       <button
                         className="flex items-center mt-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
@@ -193,7 +216,7 @@ const QuestionList = () => {
                         <span className="flex items-center ml-2">
                           5
                           <img
-                            src="src/Assets/coin.svg"
+                            src={coinIcon}
                             className="w-auto h-5 ml-1 inline-block text-white align-middle"
                           />
                         </span>

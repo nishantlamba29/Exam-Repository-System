@@ -11,7 +11,14 @@ function Upload() {
     const file = event.target.files[0];
     if (file) {
       setImage(file);
-      setPreview(URL.createObjectURL(file));
+      if (file.type === "application/pdf") {
+        const fileURL = URL.createObjectURL(file);
+        setPreview({ type: "pdf", url: fileURL });
+      } else if (file.type.startsWith("image/")) {
+        setPreview({ type: "image", url: URL.createObjectURL(file) });
+      } else {
+        setPreview(null);
+      }
     }
   };
 
@@ -53,18 +60,28 @@ function Upload() {
       >
         <input
           type="file"
-          accept="image/*"
+          accept="image/*,application/pdf"
           onChange={handleImageChange}
           className="w-full text-sm text-gray-400 file:py-2 file:px-4 file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
         />
 
         {preview && (
-          <div className="flex justify-center mt-4">
-            <img
-              src={preview}
-              alt="Preview"
-              className="w-48 h-48 rounded-lg shadow-lg object-cover border border-gray-700"
-            />
+          <div className="flex justify-center mt-4 w-full">
+            {preview.type === "image" && (
+              <img
+                src={preview.url}
+                alt="Preview"
+                className="w-48 h-48 rounded-lg shadow-lg object-cover border border-gray-700"
+              />
+            )}
+            {preview.type === "pdf" && (
+              <iframe
+                src={preview.url + "#toolbar=0"}
+                title="PDF Preview"
+                className="w-64 h-80 border border-gray-700 rounded"
+                frameBorder="0"
+              />
+            )}
           </div>
         )}
 
