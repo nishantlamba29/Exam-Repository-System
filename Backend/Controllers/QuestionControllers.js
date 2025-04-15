@@ -11,7 +11,7 @@ const promptTemplate = require("../Data/prompt.json");
 
 const GEMINI_KEY = process.env.GEMINI_KEY
 const genAI = new GoogleGenerativeAI(GEMINI_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-exp-03-25" });
 
 async function getVectorEmbedding(text) {
     // Dummy implementation: return a fixed-length dummy vector
@@ -48,16 +48,17 @@ const UploadPaper = async (req, res, next) => {
       },
     ];
 
-    const result = await model.generateContent({ contents: [{ parts }] });
-    const textResponse = result.response.text();
-    console.log("Gemini raw response:", textResponse);
+    const result = await model.generateContent({
+      contents: [{ parts }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2
+      },
+    });
+    const jsonResponse = result.response.text();
+    console.log("Gemini raw response:", jsonResponse);
 
-    const match = textResponse.match(/```json\n([\s\S]*?)\n```/);
-    if (!match) {
-      console.error("Failed to parse Gemini response.");
-      return res.status(400).json({ message: "Invalid Gemini response format" });
-    }
-    const parsed = JSON.parse(match[1]);
+    const parsed = JSON.parse(jsonResponse);
     console.log("Parsed Gemini output:", parsed);
 
     if (!parsed.course) {
