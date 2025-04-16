@@ -32,6 +32,10 @@ const UploadPaper = async (req, res, next) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
+    // Save the file to the uploads directory
+    const filePath = path.join(__dirname, "../uploads", req.file.originalname);
+    fs.writeFileSync(filePath, req.file.buffer);
+    
     // Respond immediately to user
     res.status(202).json({ message: "Paper submitted for review. You will be notified once processing is complete." });
 

@@ -135,8 +135,16 @@ const unlockAnswer = async (req, res, next) => {
 };
 
 exports.getNotifications = async (req, res) => {
-  const user = await User.findById(req.userData.userId);
+  try {
+    const user = await User.findById(req.userData.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
   res.json(user.Notification.sort((a, b) => b.CreatedAt - a.CreatedAt));
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json({ message: "Failed to fetch notifications." });
+  }
 };
 
 const getProfile = async (req, res, next) => {
