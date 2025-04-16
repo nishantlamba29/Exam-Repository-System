@@ -3,6 +3,7 @@ import AuthContext from "../../Context/AuthContext";
 import { Spinner, Alert } from "@material-tailwind/react";
 import { useNavigate } from "react-router-dom";
 import { Assets } from "../../Assets/Assets";
+import * as motion from "motion/react-client";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -109,7 +110,9 @@ export default function Signup() {
           {message}
         </Alert>
       )}
-      <div
+      <motion.div
+       initial={{ scale: 0 }}
+       animate={{ scale: 1 }}
         className={`fixed top-0 left-0 right-0 bottom-0 z-20 p-10 flex justify-center items-center ${
           loading ? "backdrop-blur-md" : "backdrop-blur-xs"
         } bg-black/30`}
@@ -261,7 +264,7 @@ export default function Signup() {
             className="absolute top-5 right-5 cursor-pointer w-5 h-5"
           />
         </form>
-      </div>
+      </motion.div>
     </>
   );
 }

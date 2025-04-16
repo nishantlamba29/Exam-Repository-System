@@ -1,12 +1,13 @@
-import React, { useEffect  , useContext} from "react";
+import React, { useEffect, useContext } from "react";
 import { Assets } from "../../Assets/Assets";
 import { useNavigate } from "react-router-dom";
 import AuthContext from "../../Context/AuthContext";
+import * as motion from "motion/react-client";
 
 export default function Login() {
   const navigate = useNavigate();
-  const auth = useContext( AuthContext) ;
-  
+  const auth = useContext(AuthContext);
+
   const [formData, setFormData] = React.useState({
     Email: "",
     Password: "",
@@ -37,7 +38,12 @@ export default function Login() {
         throw new Error("Error occurred, please try again later");
       }
       const responseData = await response.json();
-      auth.login(responseData.userId, responseData.token, responseData.credit, responseData.refCode);
+      auth.login(
+        responseData.userId,
+        responseData.token,
+        responseData.credit,
+        responseData.refCode
+      );
       console.log(responseData);
     } catch (error) {
       console.log(error);
@@ -54,7 +60,11 @@ export default function Login() {
 
   return (
     <>
-      <div className="fixed top-0 left-0 right-0 bottom-0 z-10 backdrop-blur-xs bg-black/30 flex justify-center items-center">
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        className="fixed top-0 left-0 right-0 bottom-0 z-10 backdrop-blur-xs bg-black/30 flex justify-center items-center"
+      >
         <form
           onSubmit={handleSubmit}
           method="POST"
@@ -108,7 +118,7 @@ export default function Login() {
             className="absolute top-5 right-5 cursor-pointer"
           />
         </form>
-      </div>
+      </motion.div>
     </>
   );
 }
