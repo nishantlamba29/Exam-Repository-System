@@ -7,7 +7,7 @@ export default function Hero() {
   return (
     <>
       <motion.div
-        class="overflow-x-hidden"
+        class="bg-gray-200 overflow-x-hidden"
         initial={{ opacity: 0.2, y: -50 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1 }}
