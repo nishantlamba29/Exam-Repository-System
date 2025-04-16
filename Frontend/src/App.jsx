@@ -13,6 +13,7 @@ import Subscription from "./Components/Subscription/Subscription";
 import Question from "./Components/Question/Question";
 import Spinnerr from "./Components/Spinner/Spinner";
 import Dashboard from "./Components/Dashboard/Dashboard";
+import AboutUs from "./Components/AboutUs/AboutUs";
 
 function App() {
   const { token, login, logout, userId, credit, updateCredit, refCode } = useAuth();
@@ -52,7 +53,9 @@ function App() {
                 <Route path="/spinner" element={<Spinnerr />} />
                 <Route path="/dashboard" element={<Dashboard />} />                
                 <Route path="/paper/:id" element={<Question />} />
+                <Route path="/aboutUs" element={<AboutUs/>} />
                 <Route path="/*" element={<Dashboard />} />
+                
               </>
             )}
           </Routes>

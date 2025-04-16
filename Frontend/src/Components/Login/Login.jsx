@@ -63,7 +63,7 @@ export default function Login() {
       <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        className="fixed top-0 left-0 right-0 bottom-0 z-10 backdrop-blur-xs bg-black/30 flex justify-center items-center"
+        className="fixed top-0 left-0 right-0 bottom-0 z-20 backdrop-blur-xs bg-black/30 flex justify-center items-center"
       >
         <form
           onSubmit={handleSubmit}
