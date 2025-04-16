@@ -208,11 +208,19 @@ const QuestionList = () => {
           {/* Left Side: Paper */}
           <div className="w-1/2 p-4 bg-gray-800 border-r border-gray-700">
             <h3 className="text-lg font-bold mb-4">{selectedPaper.title}</h3>
-            <iframe
-              src={`http://localhost:8000${selectedPaper.filePath}`}
-              title="Paper"
-              className="w-full h-[80vh] border border-gray-600"
-            ></iframe>
+            {selectedPaper.filePath.endsWith('.pdf') ? (
+              <iframe
+                src={`http://localhost:8000${selectedPaper.filePath}`}
+                title="Paper"
+                className="w-full h-[80vh] border border-gray-600"
+              ></iframe>
+            ) : (
+              <img
+                src={`http://localhost:8000${selectedPaper.filePath}`}
+                alt="Question Paper"
+                className="w-full h-[80vh] object-contain border border-gray-600"
+              />
+            )}
           </div>
 
           {/* Right Side: Questions and Answers */}
