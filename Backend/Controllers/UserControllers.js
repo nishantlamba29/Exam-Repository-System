@@ -134,6 +134,24 @@ const unlockAnswer = async (req, res, next) => {
   }
 };
 
+exports.getNotifications = async (req, res) => {
+  const user = await User.findById(req.userData.userId);
+  res.json(user.Notification.sort((a, b) => b.CreatedAt - a.CreatedAt));
+};
+
+const getProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.userData.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    res.status(200).json(user);
+  } catch (err) {
+    next(new HttpError("Failed to fetch user profile", 500));
+  }
+};
+
+exports.getProfile = getProfile;
 exports.Signup = Signup;
 exports.Login = Login;
 exports.unlockAnswer = unlockAnswer;

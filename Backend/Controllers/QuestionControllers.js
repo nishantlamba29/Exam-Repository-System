@@ -26,118 +26,146 @@ function sanitizeBackslashes(str) {
 }
 
 const UploadPaper = async (req, res, next) => {
+  const user = await User.findById(req.userData.userId);
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    // Save the uploaded file to the server
-    const uploadsDir = path.join(__dirname, "../uploads");
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir);
-    }
-    const filePath = path.join(uploadsDir, req.file.originalname);
-    fs.writeFileSync(filePath, req.file.buffer);
+    // Respond immediately to user
+    res.status(202).json({ message: "Paper submitted for review. You will be notified once processing is complete." });
 
-    // Convert file buffer to base64 string
-    const image = req.file.buffer.toString("base64");
+    // Start Gemini processing in background
+    setImmediate(async () => {
+      try {
+        // Convert file buffer to base64 string
+        const image = req.file.buffer.toString("base64");
 
-    // New Gemini prompt for question-answer extraction with detailed structure
-    const parts = [
-      {
-        text: JSON.stringify(promptTemplate, null, 2)
-      },
-      {
-        inlineData: {
-          mimeType: req.file.mimetype,
-          data: image,
-        },
-      },
-    ];
+        // New Gemini prompt for question-answer extraction with detailed structure
+        const parts = [
+          {
+            text: JSON.stringify(promptTemplate, null, 2)
+          },
+          {
+            inlineData: {
+              mimeType: req.file.mimetype,
+              data: image,
+            },
+          },
+        ];
 
-    const result = await model.generateContent({
-      contents: [{ parts }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.2
-      },
-    });
-    const jsonResponse = result.response.text();
-    console.log("Gemini raw response:", jsonResponse);
-
-    const safeJson = sanitizeBackslashes(jsonResponse);
-    const parsed = JSON.parse(safeJson);
-    console.log("Parsed Gemini output:", parsed);
-
-    if (!parsed.course) {
-      console.error("Parsed output missing course information.");
-      return res
-        .status(400)
-        .json({ message: "Course code could not be extracted from the paper" });
-    }
-
-    // Compute vector embeddings for each Q&A pair from the 'questions' array
-    const questionsWithEmbeddings = await Promise.all(
-      parsed.questions.map(async (item) => {
-        const vector = await getVectorEmbedding(`${item.question} ${item.answer}`);
-        return {
-          question: item.question,
-          answer: item.answer,
-          tag: item.tag,
-          embedding: vector,
-        };
-      })
-    );
-
-    // First, try to look up the course in the database using the extracted course code
-    let courseObj = await Course.findOne({ code: parsed.course.code });
-    console.log("Lookup by course code:", parsed.course.code, "=>", courseObj);
-
-    // Fallback: if no course was found by code, search by the course name using a regex match
-    if (!courseObj) {
-      // Construct a case-insensitive regex that matches the start of the course name
-      const nameRegex = new RegExp("^" + parsed.course.name, "i");
-      courseObj = await Course.findOne({ name: { $regex: nameRegex } });
-      console.log("Fallback lookup by course name regex:", parsed.course.name, "=>", courseObj);
-      if (!courseObj) {
-        console.error("No course found with the provided code or name.");
-        return res.status(400).json({
-          message: "No course found with the provided course code or course name",
+        const result = await model.generateContent({
+          contents: [{ parts }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.2
+          },
         });
+        const jsonResponse = result.response.text();
+        console.log("Gemini raw response:", jsonResponse);
+
+        const safeJson = sanitizeBackslashes(jsonResponse);
+        const parsed = JSON.parse(safeJson);
+        console.log("Parsed Gemini output:", parsed);
+
+        if (parsed.course.code === "-1" || parsed.session.toString() === "-1") {
+          console.error("Parsed output missing course information.");
+          if (user) {
+            user.Credit -= 10;
+            user.Notification.push({
+              Message: `Your paper [${req.body.title || req.file.originalname}] has been rejected as it could not be identified as a valid exam paper. Please try again.`
+            });
+            await user.save();
+          }
+          return;
+        }
+
+        // Compute vector embeddings for each Q&A pair from the 'questions' array
+        const questionsWithEmbeddings = await Promise.all(
+          parsed.questions.map(async (item) => {
+            const vector = await getVectorEmbedding(`${item.question} ${item.answer}`);
+            return {
+              question: item.question,
+              answer: item.answer,
+              tag: item.tag,
+              embedding: vector,
+            };
+          })
+        );
+
+        // First, try to look up the course in the database using the extracted course code
+        let courseObj = await Course.findOne({ code: parsed.course.code });
+        console.log("Lookup by course code:", parsed.course.code, "=>", courseObj);
+
+        // Fallback: if no course was found by code, search by the course name using a regex match
+        if (!courseObj) {
+          // Construct a case-insensitive regex that matches the start of the course name
+          const nameRegex = new RegExp("^" + parsed.course.name, "i");
+          courseObj = await Course.findOne({ name: { $regex: nameRegex } });
+          console.log("Fallback lookup by course name regex:", parsed.course.name, "=>", courseObj);
+          if (!courseObj) {
+            console.error("No course found with the provided code or name.");
+            if (user) {
+              user.Credit -= 10;
+              user.Notification.push({
+                Message: `Your paper [${req.body.title || req.file.originalname}] has been rejected as it could not be matched with a valid course. Please try again.`
+              });
+              await user.save();
+            }
+            return;
+          }
+        }
+
+        // Check if a paper with the same course, session, sessionYear, and examType already exists.
+        const existingPaper = await Paper.findOne({
+          course: courseObj._id,
+          session: parsed.session,
+          sessionYear: parsed.sessionYear,
+          examType: parsed.examType,
+        });
+        if (existingPaper) {
+          if (user) {
+            user.Notification.push({
+              Message: `Your paper [${req.body.title || req.file.originalname}] is already present in the database.`,
+              paperId: existingPaper._id
+            });
+            await user.save();
+          }
+          return;
+        }
+
+        // Update the Paper using the new model with added fields
+        const paper = new Paper({
+          title: req.body.title || req.file.originalname,
+          filePath: `/uploads/${req.file.originalname}`,
+          course: courseObj._id,
+          session: parsed.session,
+          sessionYear: parsed.sessionYear,
+          examType: parsed.examType,
+          questions: questionsWithEmbeddings,
+        });
+        await paper.save();
+        console.log("Paper updated successfully.");
+        if (user) {
+          user.Credit += 100;
+          user.Notification.push({
+            Message: `Your paper [${parsed.course.code}] ${parsed.course.name} (${parsed.examType}) has been approved!`,
+            paperId: paper._id
+          });
+          await user.save();
+        }
+      } catch (err) {
+        // On error, mark as rejected and notify user
+        if (user) {
+          user.Notification.push({
+            Message: `Your paper [${req.body.title || req.file.originalname}] has been rejected due to error: ${err.message}. Please try again.`
+          });
+          await user.save();
+        }
       }
-    }
-
-    // Check if a paper with the same course, session, sessionYear, and examType already exists.
-    const existingPaper = await Paper.findOne({
-      course: courseObj._id,
-      session: parsed.session,
-      sessionYear: parsed.sessionYear,
-      examType: parsed.examType,
     });
-    if (existingPaper) {
-      return res.status(400).json({
-        message: "A paper for the same course, session, and exam type already exists.",
-      });
-    }
-
-    // Create the Paper using the new model with added fields
-    const paper = new Paper({
-      title: req.body.title || req.file.originalname,
-      filePath: `/uploads/${req.file.originalname}`,
-      course: courseObj._id,
-      session: parsed.session,
-      sessionYear: parsed.sessionYear,
-      examType: parsed.examType,
-      questions: questionsWithEmbeddings,
-    });
-    console.log("Paper to be saved:", paper);
-
-    await paper.save();
-    console.log("Paper saved successfully.");
-    res.status(201).json({ message: "Paper uploaded successfully", paper });
   } catch (error) {
-    console.error("Error generating content:", error);
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 };
 

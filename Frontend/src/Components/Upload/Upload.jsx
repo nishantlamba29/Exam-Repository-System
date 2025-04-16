@@ -1,8 +1,10 @@
 import React, { useState, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import AuthContext from "../../Context/AuthContext";
 
 function Upload() {
   const auth = useContext(AuthContext);
+  const navigate = useNavigate();
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState("");
@@ -44,6 +46,9 @@ function Upload() {
       }
       console.log(responseData);
       setResult(responseData.message);
+
+      // Redirect to home after 5 seconds
+      setTimeout(() => { navigate("/"); }, 5000);
     } catch (error) {
       console.error("Upload error:", error);
       setResult(error.message);
@@ -62,7 +67,17 @@ function Upload() {
           type="file"
           accept="image/*,application/pdf"
           onChange={handleImageChange}
-          className="w-full text-sm text-gray-400 file:py-2 file:px-4 file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
+          disabled={!!result}
+          className={`
+            w-full text-sm text-gray-400
+            file:py-2 file:px-4 file:rounded-lg file:font-semibold
+            file:border-0 file:text-white file:transition-all file:duration-300
+            file:cursor-pointer
+            ${!!result
+              ? "file:bg-gray-500 file:cursor-not-allowed"
+              : "file:bg-blue-600 hover:file:bg-blue-700"
+            }
+          `}
         />
 
         {preview && (
@@ -87,7 +102,12 @@ function Upload() {
 
         <button
           type="submit"
-          className="w-full py-2 px-4 rounded-lg font-semibold bg-blue-600 hover:bg-blue-700 transition-all duration-300 text-white"
+          disabled={!!result}
+          className={`w-full py-2 px-4 rounded-lg font-semibold transition-all duration-300 text-white ${
+            !!result
+              ? "bg-gray-500 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
+          }`}
         >
           Submit
         </button>
@@ -96,9 +116,39 @@ function Upload() {
       {result && (
         <div className="mt-6 bg-gray-800 p-4 rounded-lg shadow-xl w-full max-w-md">
           <h2 className="text-xl font-semibold mb-2">Result:</h2>
-          <p className="text-gray-300">
-            {typeof result === "string" ? result : JSON.stringify(result, null, 2)}
-          </p>
+          <div className="flex items-start">
+            {result.toLowerCase().includes("processing") ? (
+              <>
+                <svg
+                  className="animate-spin h-5 w-5 mr-1 mt-1 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8z"
+                  ></path>
+                </svg>
+                <p className="text-gray-300 ml-2">
+                  {result}
+                </p>
+              </>
+            ) : (
+              <p className="text-gray-300">
+                {typeof result === "string" ? result : JSON.stringify(result, null, 2)}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
