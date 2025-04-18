@@ -2,7 +2,7 @@
   "instruction": "Extract details from the exam paper exactly as they appear. Return a JSON output containing the following keys: 'course', 'session', 'sessionYear', 'examType', and 'questions'. For each question, include its text, a detailed answer, and a specific topic tag. Analyze each question carefully to provide a detailed, pedagogically valuable answer.",
   "details": {
     "course": {
-      "description": "An object with two keys: 'code' (e.g., 'CSC306') and 'name' (e.g., 'Computer Networks')."
+      "description": "An object with two keys: 'code' (e.g., 'CSC306') and 'name' (e.g., 'Computer Networks'). The normalised course code contains two parts: a string and a number, and there must be no hyphen or space between them. Normalise any variation (e.g., 'CS 306', 'CS-306', etc.) to the correct value."
     },
     "session": {
       "description": "A string which must be one of 'Winter', 'Summer', or 'Monsoon'. Normalize any variation (e.g., 'winter session', 'SUMMER-23', etc.) to the correct value."
