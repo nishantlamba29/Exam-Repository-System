@@ -18,11 +18,14 @@ async function getVectorEmbedding(text) {
     return Array.from({ length: 10 }, () => Math.random());
 }
 
-function sanitizeBackslashes(str) {
+function sanitizeJsonResponse(str) {
+   // First remove all carriage returns and line feeds
+   const noLines = str.replace(/[\r\n]+/g, '');
+
   // This regex finds any sequence of one or more backslashes
   // not followed by a valid escape character and
   // doubles the number of backslashes in that sequence.
-  return str.replace(/(\\+)(?!["\\/bfnrtu])/g, (match, slashes) => slashes + slashes);
+  return noLines.replace(/(\\+)(?!["\\/bfnrtu])/g, (match, slashes) => slashes + slashes);
 }
 
 const UploadPaper = async (req, res, next) => {
@@ -68,7 +71,7 @@ const UploadPaper = async (req, res, next) => {
         const jsonResponse = result.response.text();
         console.log("Gemini raw response:", jsonResponse);
 
-        const safeJson = sanitizeBackslashes(jsonResponse);
+        const safeJson = sanitizeJsonResponse(jsonResponse);
         const parsed = JSON.parse(safeJson);
         console.log("Parsed Gemini output:", parsed);
 
