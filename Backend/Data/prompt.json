@@ -1,5 +1,5 @@
 {
-  "instruction": "Extract details from the exam paper exactly as they appear. Return a JSON output containing the following keys: 'course', 'session', 'sessionYear', 'examType', and 'questions'. For each question, include its text, a detailed answer, and a specific topic tag. Analyze each question carefully to provide a detailed, pedagogically valuable answer.",
+  "instruction": "Extract details from the exam paper exactly as they appear. Return a JSON output containing the following keys: 'course', 'session', 'sessionYear', 'examType', and 'questions'. For each question, include its exact text and a specific topic tag. Do not answer the questions in this phase.",
   "details": {
     "course": {
       "description": "An object with two keys: 'code' (e.g., 'CSC306') and 'name' (e.g., 'Computer Networks'). The normalised course code contains two parts: a string and a number, and there must be no hyphen or space between them. Normalise any variation (e.g., 'CS 306', 'CS-306', etc.) to the correct value."
@@ -17,7 +17,6 @@
       "description": "An array where each item is an object representing an exam question with its detail answer and a topic tag.",
       "structure": {
         "question": "The question text, captured exactly as it appears in the exam paper.",
-        "answer": "Generate an exceptionally detailed and comprehensive answer, suitable for a student aiming for deep understanding. The answer should go beyond a simple solution and provide pedagogical value. **Clarity and Structure:** Use markdown formatting such as bullet points, numbered lists, math (including inline math) formulas (written in LaTeX with markdown), and logical headings/subheadings (`### Heading`) to structure the answer and improve readability.",
         "tag": "A single, specific tag that accurately identifies the core concept, technique, model, algorithm, or sub-topic tested by the question."
       }
     }
@@ -72,16 +71,12 @@
             "question": {
               "type": "string"
             },
-            "answer": {
-              "type": "string"
-            },
             "tag": {
               "type": "string"
             }
           },
           "required": [
             "question",
-            "answer",
             "tag"
           ]
         }

@@ -8,19 +8,20 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const coursesData = require("../Data/courses.json");
 const Course = require("../Models/Course");
 const promptTemplate = require("../Data/prompt.json");
+const answerPromptTemplate = require("../Data/answer_prompt.json");
 
 const GEMINI_KEY = process.env.GEMINI_KEY
 const genAI = new GoogleGenerativeAI(GEMINI_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-exp-03-25" });
 
 async function getVectorEmbedding(text) {
-    // Dummy implementation: return a fixed-length dummy vector
-    return Array.from({ length: 10 }, () => Math.random());
+  // Dummy implementation: return a fixed-length dummy vector
+  return Array.from({ length: 10 }, () => Math.random());
 }
 
 function sanitizeJsonResponse(str) {
-   // First remove all carriage returns and line feeds
-   const noLines = str.replace(/[\r\n]+/g, '');
+  // First remove all carriage returns and line feeds
+  const noLines = str.replace(/[\r\n]+/g, '');
 
   // This regex finds any sequence of one or more backslashes
   // not followed by a valid escape character and
@@ -38,7 +39,7 @@ const UploadPaper = async (req, res, next) => {
     // Save the file to the uploads directory
     const filePath = path.join(__dirname, "../uploads", req.file.originalname);
     fs.writeFileSync(filePath, req.file.buffer);
-    
+
     // Respond immediately to user
     res.status(202).json({ message: "Paper submitted for review. You will be notified once processing is complete." });
 
@@ -87,9 +88,57 @@ const UploadPaper = async (req, res, next) => {
           return;
         }
 
-        // Compute vector embeddings for each Q&A pair from the 'questions' array
+        // Answering Phase - Iterate over questions to get detailed answers
+        const questionsWithAnswers = [];
+        for (let i = 0; i < parsed.questions.length; i++) {
+          const item = parsed.questions[i];
+          console.log(`Generating answer for question ${i + 1}/${parsed.questions.length}...`);
+
+          try {
+            const answerParts = [
+              {
+                text: JSON.stringify(answerPromptTemplate, null, 2) + `\n\nSpecific Question: ${item.question}`
+              },
+              {
+                inlineData: {
+                  mimeType: req.file.mimetype,
+                  data: image,
+                },
+              },
+            ];
+
+            const answerResult = await model.generateContent({
+              contents: [{ parts: answerParts }],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.3
+              },
+            });
+
+            const answerJsonResponse = answerResult.response.text();
+            const safeAnswerJson = sanitizeJsonResponse(answerJsonResponse);
+            const parsedAnswer = JSON.parse(safeAnswerJson);
+
+            questionsWithAnswers.push({
+              question: item.question,
+              tag: item.tag,
+              answer: parsedAnswer.answer || "Answer generation failed."
+            });
+            // Small delay to help mitigate rate limiting
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (err) {
+            console.error(`Failed to generate answer for question ${i + 1}:`, err);
+            questionsWithAnswers.push({
+              question: item.question,
+              tag: item.tag,
+              answer: "Failed to generate detailed answer for this question due to an error."
+            });
+          }
+        }
+
+        // Compute vector embeddings for each Q&A pair from the 'questionsWithAnswers' array
         const questionsWithEmbeddings = await Promise.all(
-          parsed.questions.map(async (item) => {
+          questionsWithAnswers.map(async (item) => {
             const vector = await getVectorEmbedding(`${item.question} ${item.answer}`);
             return {
               question: item.question,
