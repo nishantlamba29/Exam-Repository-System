@@ -5,6 +5,7 @@ const Question = require("../Models/Question");
 const Paper = require("../Models/Paper");
 const User = require("../Models/User");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleAIFileManager, GoogleAICacheManager } = require("@google/generative-ai/server");
 const coursesData = require("../Data/courses.json");
 const Course = require("../Models/Course");
 const promptTemplate = require("../Data/prompt.json");
@@ -12,7 +13,8 @@ const answerPromptTemplate = require("../Data/answer_prompt.json");
 
 const GEMINI_KEY = process.env.GEMINI_KEY
 const genAI = new GoogleGenerativeAI(GEMINI_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-exp-03-25" });
+const GEMINI_MODEL = "gemini-2.5-pro-exp-03-25";
+const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
 async function getVectorEmbedding(text) {
   // Dummy implementation: return a fixed-length dummy vector
@@ -45,25 +47,66 @@ const UploadPaper = async (req, res, next) => {
 
     // Start Gemini processing in background
     setImmediate(async () => {
-      try {
-        // Convert file buffer to base64 string
-        const image = req.file.buffer.toString("base64");
+      let uploadName = null;
+      let cachedContentName = null;
+      const fileManager = new GoogleAIFileManager(GEMINI_KEY);
+      const cacheManager = new GoogleAICacheManager(GEMINI_KEY);
 
-        // New Gemini prompt for question-answer extraction with detailed structure
+      try {
+        console.log("Uploading file to Gemini File API...");
+        const uploadResult = await fileManager.uploadFile(filePath, {
+          mimeType: req.file.mimetype,
+          displayName: req.file.originalname,
+        });
+        uploadName = uploadResult.file.name;
+        console.log(`Uploaded file URI: ${uploadResult.file.uri}`);
+
+        let currentModel;
+
+        try {
+          console.log("Creating Context Cache...");
+          const cacheResult = await cacheManager.create({
+            model: `models/${GEMINI_MODEL}`,
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    fileData: {
+                      mimeType: uploadResult.file.mimeType,
+                      fileUri: uploadResult.file.uri,
+                    },
+                  },
+                ],
+              },
+            ],
+            ttlSeconds: 60 * 15,
+          });
+          cachedContentName = cacheResult.name;
+          console.log(`Cache successfully created: ${cachedContentName}`);
+          currentModel = genAI.getGenerativeModelFromCachedContent(cacheResult);
+        } catch (cacheError) {
+          console.log("Context caching fallback triggered (usually due to input < 32k tokens). Using normal File API refs.");
+          currentModel = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+        }
+
         const parts = [
           {
             text: JSON.stringify(promptTemplate, null, 2)
-          },
-          {
-            inlineData: {
-              mimeType: req.file.mimetype,
-              data: image,
-            },
-          },
+          }
         ];
 
-        const result = await model.generateContent({
-          contents: [{ parts }],
+        if (!cachedContentName) {
+          parts.push({
+            fileData: {
+              mimeType: uploadResult.file.mimeType,
+              fileUri: uploadResult.file.uri,
+            }
+          });
+        }
+
+        const result = await currentModel.generateContent({
+          contents: [{ role: "user", parts }],
           generationConfig: {
             responseMimeType: "application/json",
             temperature: 0.2
@@ -98,17 +141,20 @@ const UploadPaper = async (req, res, next) => {
             const answerParts = [
               {
                 text: JSON.stringify(answerPromptTemplate, null, 2) + `\n\nSpecific Question: ${item.question}`
-              },
-              {
-                inlineData: {
-                  mimeType: req.file.mimetype,
-                  data: image,
-                },
-              },
+              }
             ];
 
-            const answerResult = await model.generateContent({
-              contents: [{ parts: answerParts }],
+            if (!cachedContentName) {
+              answerParts.push({
+                fileData: {
+                  mimeType: uploadResult.file.mimeType,
+                  fileUri: uploadResult.file.uri,
+                }
+              });
+            }
+
+            const answerResult = await currentModel.generateContent({
+              contents: [{ role: "user", parts: answerParts }],
               generationConfig: {
                 responseMimeType: "application/json",
                 temperature: 0.3
@@ -217,6 +263,15 @@ const UploadPaper = async (req, res, next) => {
             Message: `Your paper [${req.body.title || req.file.originalname}] has been rejected due to error: ${err.message}. Please try again.`
           });
           await user.save();
+        }
+      } finally {
+        if (cachedContentName) {
+          console.log(`Cleaning up cache ${cachedContentName}...`);
+          await cacheManager.delete(cachedContentName).catch(e => console.error("Cache cleanup error:", e));
+        }
+        if (uploadName) {
+          console.log(`Cleaning up file ${uploadName}...`);
+          await fileManager.deleteFile(uploadName).catch(e => console.error("File cleanup error:", e));
         }
       }
     });
