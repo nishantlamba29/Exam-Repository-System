@@ -10,6 +10,7 @@ const coursesData = require("../Data/courses.json");
 const Course = require("../Models/Course");
 const promptTemplate = require("../Data/prompt.json");
 const answerPromptTemplate = require("../Data/answer_prompt.json");
+const agenda = require("../Utils/Agenda");
 
 const GEMINI_KEY = process.env.GEMINI_KEY
 const genAI = new GoogleGenerativeAI(GEMINI_KEY);
@@ -31,6 +32,239 @@ function sanitizeJsonResponse(str) {
   return noLines.replace(/(\\+)(?!["\\/bfnrtu])/g, (match, slashes) => slashes + slashes);
 }
 
+agenda.define("process uploaded paper", { concurrency: 1 }, async (job) => {
+  const { filePath, originalname, mimetype, title, userId } = job.attrs.data;
+  const user = await User.findById(userId);
+
+  let uploadName = null;
+  let cachedContentName = null;
+  const fileManager = new GoogleAIFileManager(GEMINI_KEY);
+  const cacheManager = new GoogleAICacheManager(GEMINI_KEY);
+
+  try {
+    console.log("Uploading file to Gemini File API...");
+    const uploadResult = await fileManager.uploadFile(filePath, {
+      mimeType: mimetype,
+      displayName: originalname,
+    });
+    uploadName = uploadResult.file.name;
+    console.log(`Uploaded file URI: ${uploadResult.file.uri}`);
+
+    let currentModel;
+
+    try {
+      console.log("Creating Context Cache...");
+      const cacheResult = await cacheManager.create({
+        model: `models/${GEMINI_MODEL}`,
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                fileData: {
+                  mimeType: uploadResult.file.mimeType,
+                  fileUri: uploadResult.file.uri,
+                },
+              },
+            ],
+          },
+        ],
+        ttlSeconds: 60 * 15,
+      });
+      cachedContentName = cacheResult.name;
+      console.log(`Cache successfully created: ${cachedContentName}`);
+      currentModel = genAI.getGenerativeModelFromCachedContent(cacheResult);
+    } catch (cacheError) {
+      console.log("Context caching fallback triggered (usually due to input < 32k tokens). Using normal File API refs.");
+      currentModel = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    }
+
+    const parts = [
+      {
+        text: JSON.stringify(promptTemplate, null, 2)
+      }
+    ];
+
+    if (!cachedContentName) {
+      parts.push({
+        fileData: {
+          mimeType: uploadResult.file.mimeType,
+          fileUri: uploadResult.file.uri,
+        }
+      });
+    }
+
+    const result = await currentModel.generateContent({
+      contents: [{ role: "user", parts }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2
+      },
+    });
+    const jsonResponse = result.response.text();
+    console.log("Gemini raw response:", jsonResponse);
+
+    const safeJson = sanitizeJsonResponse(jsonResponse);
+    const parsed = JSON.parse(safeJson);
+    console.log("Parsed Gemini output:", parsed);
+
+    if (parsed.course.code === "-1" || parsed.session.toString() === "-1") {
+      console.error("Parsed output missing course information.");
+      if (user) {
+        user.Credit -= 10;
+        user.Notification.push({
+          Message: `Your paper [${title || originalname}] has been rejected as it could not be identified as a valid exam paper. Please try again.`
+        });
+        await user.save();
+      }
+      return;
+    }
+
+    // Answering Phase - Iterate over questions to get detailed answers
+    const questionsWithAnswers = [];
+    for (let i = 0; i < parsed.questions.length; i++) {
+      const item = parsed.questions[i];
+      console.log(`Generating answer for question ${i + 1}/${parsed.questions.length}...`);
+
+      try {
+        const answerParts = [
+          {
+            text: JSON.stringify(answerPromptTemplate, null, 2) + `\n\nSpecific Question: ${item.question}`
+          }
+        ];
+
+        if (!cachedContentName) {
+          answerParts.push({
+            fileData: {
+              mimeType: uploadResult.file.mimeType,
+              fileUri: uploadResult.file.uri,
+            }
+          });
+        }
+
+        const answerResult = await currentModel.generateContent({
+          contents: [{ role: "user", parts: answerParts }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.3
+          },
+        });
+
+        const answerJsonResponse = answerResult.response.text();
+        const safeAnswerJson = sanitizeJsonResponse(answerJsonResponse);
+        const parsedAnswer = JSON.parse(safeAnswerJson);
+
+        questionsWithAnswers.push({
+          question: item.question,
+          tag: item.tag,
+          answer: parsedAnswer.answer || "Answer generation failed."
+        });
+        // Small delay to help mitigate rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (err) {
+        console.error(`Failed to generate answer for question ${i + 1}:`, err);
+        questionsWithAnswers.push({
+          question: item.question,
+          tag: item.tag,
+          answer: "Failed to generate detailed answer for this question due to an error."
+        });
+      }
+    }
+
+    // Compute vector embeddings for each Q&A pair from the 'questionsWithAnswers' array
+    const questionsWithEmbeddings = await Promise.all(
+      questionsWithAnswers.map(async (item) => {
+        const vector = await getVectorEmbedding(`${item.question} ${item.answer}`);
+        return {
+          question: item.question,
+          answer: item.answer,
+          tag: item.tag,
+          embedding: vector,
+        };
+      })
+    );
+
+    // First, try to look up the course in the database using the extracted course code
+    let courseObj = await Course.findOne({ code: parsed.course.code });
+    console.log("Lookup by course code:", parsed.course.code, "=>", courseObj);
+
+    // Fallback: if no course was found by code, search by the course name using a regex match
+    if (!courseObj) {
+      // Construct a case-insensitive regex that matches the start of the course name
+      const nameRegex = new RegExp("^" + parsed.course.name, "i");
+      courseObj = await Course.findOne({ name: { $regex: nameRegex } });
+      console.log("Fallback lookup by course name regex:", parsed.course.name, "=>", courseObj);
+      if (!courseObj) {
+        console.error("No course found with the provided code or name.");
+        if (user) {
+          user.Credit -= 10;
+          user.Notification.push({
+            Message: `Your paper [${title || originalname}] has been rejected as it could not be matched with a valid course. Please try again.`
+          });
+          await user.save();
+        }
+        return;
+      }
+    }
+
+    // Check if a paper with the same course, session, sessionYear, and examType already exists.
+    const existingPaper = await Paper.findOne({
+      course: courseObj._id,
+      session: parsed.session,
+      sessionYear: parsed.sessionYear,
+      examType: parsed.examType,
+    });
+    if (existingPaper) {
+      if (user) {
+        user.Notification.push({
+          Message: `Your paper [${title || originalname}] is already present in the database.`,
+          paperId: existingPaper._id
+        });
+        await user.save();
+      }
+      return;
+    }
+
+    // Update the Paper using the new model with added fields
+    const paper = new Paper({
+      title: title || originalname,
+      filePath: `/uploads/${originalname}`,
+      course: courseObj._id,
+      session: parsed.session,
+      sessionYear: parsed.sessionYear,
+      examType: parsed.examType,
+      questions: questionsWithEmbeddings,
+    });
+    await paper.save();
+    console.log("Paper updated successfully.");
+    if (user) {
+      user.Credit += 100;
+      user.Notification.push({
+        Message: `Your paper [${parsed.course.code}] ${parsed.course.name} (${parsed.examType}) has been approved!`,
+        paperId: paper._id
+      });
+      await user.save();
+    }
+  } catch (err) {
+    // On error, mark as rejected and notify user
+    if (user) {
+      user.Notification.push({
+        Message: `Your paper [${title || originalname}] has been rejected due to error: ${err.message}. Please try again.`
+      });
+      await user.save();
+    }
+  } finally {
+    if (cachedContentName) {
+      console.log(`Cleaning up cache ${cachedContentName}...`);
+      await cacheManager.delete(cachedContentName).catch(e => console.error("Cache cleanup error:", e));
+    }
+    if (uploadName) {
+      console.log(`Cleaning up file ${uploadName}...`);
+      await fileManager.deleteFile(uploadName).catch(e => console.error("File cleanup error:", e));
+    }
+  }
+});
+
 const UploadPaper = async (req, res, next) => {
   const user = await User.findById(req.userData.userId);
   try {
@@ -45,235 +279,13 @@ const UploadPaper = async (req, res, next) => {
     // Respond immediately to user
     res.status(202).json({ message: "Paper submitted for review. You will be notified once processing is complete." });
 
-    // Start Gemini processing in background
-    setImmediate(async () => {
-      let uploadName = null;
-      let cachedContentName = null;
-      const fileManager = new GoogleAIFileManager(GEMINI_KEY);
-      const cacheManager = new GoogleAICacheManager(GEMINI_KEY);
-
-      try {
-        console.log("Uploading file to Gemini File API...");
-        const uploadResult = await fileManager.uploadFile(filePath, {
-          mimeType: req.file.mimetype,
-          displayName: req.file.originalname,
-        });
-        uploadName = uploadResult.file.name;
-        console.log(`Uploaded file URI: ${uploadResult.file.uri}`);
-
-        let currentModel;
-
-        try {
-          console.log("Creating Context Cache...");
-          const cacheResult = await cacheManager.create({
-            model: `models/${GEMINI_MODEL}`,
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  {
-                    fileData: {
-                      mimeType: uploadResult.file.mimeType,
-                      fileUri: uploadResult.file.uri,
-                    },
-                  },
-                ],
-              },
-            ],
-            ttlSeconds: 60 * 15,
-          });
-          cachedContentName = cacheResult.name;
-          console.log(`Cache successfully created: ${cachedContentName}`);
-          currentModel = genAI.getGenerativeModelFromCachedContent(cacheResult);
-        } catch (cacheError) {
-          console.log("Context caching fallback triggered (usually due to input < 32k tokens). Using normal File API refs.");
-          currentModel = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-        }
-
-        const parts = [
-          {
-            text: JSON.stringify(promptTemplate, null, 2)
-          }
-        ];
-
-        if (!cachedContentName) {
-          parts.push({
-            fileData: {
-              mimeType: uploadResult.file.mimeType,
-              fileUri: uploadResult.file.uri,
-            }
-          });
-        }
-
-        const result = await currentModel.generateContent({
-          contents: [{ role: "user", parts }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.2
-          },
-        });
-        const jsonResponse = result.response.text();
-        console.log("Gemini raw response:", jsonResponse);
-
-        const safeJson = sanitizeJsonResponse(jsonResponse);
-        const parsed = JSON.parse(safeJson);
-        console.log("Parsed Gemini output:", parsed);
-
-        if (parsed.course.code === "-1" || parsed.session.toString() === "-1") {
-          console.error("Parsed output missing course information.");
-          if (user) {
-            user.Credit -= 10;
-            user.Notification.push({
-              Message: `Your paper [${req.body.title || req.file.originalname}] has been rejected as it could not be identified as a valid exam paper. Please try again.`
-            });
-            await user.save();
-          }
-          return;
-        }
-
-        // Answering Phase - Iterate over questions to get detailed answers
-        const questionsWithAnswers = [];
-        for (let i = 0; i < parsed.questions.length; i++) {
-          const item = parsed.questions[i];
-          console.log(`Generating answer for question ${i + 1}/${parsed.questions.length}...`);
-
-          try {
-            const answerParts = [
-              {
-                text: JSON.stringify(answerPromptTemplate, null, 2) + `\n\nSpecific Question: ${item.question}`
-              }
-            ];
-
-            if (!cachedContentName) {
-              answerParts.push({
-                fileData: {
-                  mimeType: uploadResult.file.mimeType,
-                  fileUri: uploadResult.file.uri,
-                }
-              });
-            }
-
-            const answerResult = await currentModel.generateContent({
-              contents: [{ role: "user", parts: answerParts }],
-              generationConfig: {
-                responseMimeType: "application/json",
-                temperature: 0.3
-              },
-            });
-
-            const answerJsonResponse = answerResult.response.text();
-            const safeAnswerJson = sanitizeJsonResponse(answerJsonResponse);
-            const parsedAnswer = JSON.parse(safeAnswerJson);
-
-            questionsWithAnswers.push({
-              question: item.question,
-              tag: item.tag,
-              answer: parsedAnswer.answer || "Answer generation failed."
-            });
-            // Small delay to help mitigate rate limiting
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } catch (err) {
-            console.error(`Failed to generate answer for question ${i + 1}:`, err);
-            questionsWithAnswers.push({
-              question: item.question,
-              tag: item.tag,
-              answer: "Failed to generate detailed answer for this question due to an error."
-            });
-          }
-        }
-
-        // Compute vector embeddings for each Q&A pair from the 'questionsWithAnswers' array
-        const questionsWithEmbeddings = await Promise.all(
-          questionsWithAnswers.map(async (item) => {
-            const vector = await getVectorEmbedding(`${item.question} ${item.answer}`);
-            return {
-              question: item.question,
-              answer: item.answer,
-              tag: item.tag,
-              embedding: vector,
-            };
-          })
-        );
-
-        // First, try to look up the course in the database using the extracted course code
-        let courseObj = await Course.findOne({ code: parsed.course.code });
-        console.log("Lookup by course code:", parsed.course.code, "=>", courseObj);
-
-        // Fallback: if no course was found by code, search by the course name using a regex match
-        if (!courseObj) {
-          // Construct a case-insensitive regex that matches the start of the course name
-          const nameRegex = new RegExp("^" + parsed.course.name, "i");
-          courseObj = await Course.findOne({ name: { $regex: nameRegex } });
-          console.log("Fallback lookup by course name regex:", parsed.course.name, "=>", courseObj);
-          if (!courseObj) {
-            console.error("No course found with the provided code or name.");
-            if (user) {
-              user.Credit -= 10;
-              user.Notification.push({
-                Message: `Your paper [${req.body.title || req.file.originalname}] has been rejected as it could not be matched with a valid course. Please try again.`
-              });
-              await user.save();
-            }
-            return;
-          }
-        }
-
-        // Check if a paper with the same course, session, sessionYear, and examType already exists.
-        const existingPaper = await Paper.findOne({
-          course: courseObj._id,
-          session: parsed.session,
-          sessionYear: parsed.sessionYear,
-          examType: parsed.examType,
-        });
-        if (existingPaper) {
-          if (user) {
-            user.Notification.push({
-              Message: `Your paper [${req.body.title || req.file.originalname}] is already present in the database.`,
-              paperId: existingPaper._id
-            });
-            await user.save();
-          }
-          return;
-        }
-
-        // Update the Paper using the new model with added fields
-        const paper = new Paper({
-          title: req.body.title || req.file.originalname,
-          filePath: `/uploads/${req.file.originalname}`,
-          course: courseObj._id,
-          session: parsed.session,
-          sessionYear: parsed.sessionYear,
-          examType: parsed.examType,
-          questions: questionsWithEmbeddings,
-        });
-        await paper.save();
-        console.log("Paper updated successfully.");
-        if (user) {
-          user.Credit += 100;
-          user.Notification.push({
-            Message: `Your paper [${parsed.course.code}] ${parsed.course.name} (${parsed.examType}) has been approved!`,
-            paperId: paper._id
-          });
-          await user.save();
-        }
-      } catch (err) {
-        // On error, mark as rejected and notify user
-        if (user) {
-          user.Notification.push({
-            Message: `Your paper [${req.body.title || req.file.originalname}] has been rejected due to error: ${err.message}. Please try again.`
-          });
-          await user.save();
-        }
-      } finally {
-        if (cachedContentName) {
-          console.log(`Cleaning up cache ${cachedContentName}...`);
-          await cacheManager.delete(cachedContentName).catch(e => console.error("Cache cleanup error:", e));
-        }
-        if (uploadName) {
-          console.log(`Cleaning up file ${uploadName}...`);
-          await fileManager.deleteFile(uploadName).catch(e => console.error("File cleanup error:", e));
-        }
-      }
+    // Schedule Agenda job in the background
+    await agenda.now("process uploaded paper", {
+      filePath,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      title: req.body.title,
+      userId: req.userData.userId
     });
   } catch (error) {
     next(error);

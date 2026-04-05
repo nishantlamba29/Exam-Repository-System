@@ -17,6 +17,12 @@ mongoose
 .connect("mongodb://127.0.0.1:27017/cseproject")
 .then(async () => {
     console.log("Connected to database");
+
+    // Initialize and start Agenda Job Scheduler
+    const agenda = require("./Utils/Agenda");
+    await agenda.start();
+    console.log("Agenda scheduler started");
+
     // Automatically seed courses if collection is empty
     const Course = require("./Models/Course");
     const count = await Course.countDocuments();
