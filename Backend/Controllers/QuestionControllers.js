@@ -79,9 +79,10 @@ agenda.define("process uploaded paper", { concurrency: 1 }, async (job) => {
       currentModel = genAI.getGenerativeModel({ model: GEMINI_MODEL });
     }
 
+    const { responseSchema: extractionSchema, responseMimeType: _rm, output_format: _of, ...extractionPromptText } = promptTemplate;
     const parts = [
       {
-        text: JSON.stringify(promptTemplate, null, 2)
+        text: JSON.stringify(extractionPromptText, null, 2)
       }
     ];
 
@@ -98,6 +99,7 @@ agenda.define("process uploaded paper", { concurrency: 1 }, async (job) => {
       contents: [{ role: "user", parts }],
       generationConfig: {
         responseMimeType: "application/json",
+        responseSchema: extractionSchema,
         temperature: 0.2
       },
     });
@@ -127,9 +129,10 @@ agenda.define("process uploaded paper", { concurrency: 1 }, async (job) => {
       console.log(`Generating answer for question ${i + 1}/${parsed.questions.length}...`);
 
       try {
+        const { responseSchema: answerSchema, responseMimeType: _arm, ...answerPromptText } = answerPromptTemplate;
         const answerParts = [
           {
-            text: JSON.stringify(answerPromptTemplate, null, 2) + `\n\nSpecific Question: ${item.question}`
+            text: JSON.stringify(answerPromptText, null, 2) + `\n\nSpecific Question: ${item.question}`
           }
         ];
 
@@ -146,6 +149,7 @@ agenda.define("process uploaded paper", { concurrency: 1 }, async (job) => {
           contents: [{ role: "user", parts: answerParts }],
           generationConfig: {
             responseMimeType: "application/json",
+            responseSchema: answerSchema,
             temperature: 0.3
           },
         });
